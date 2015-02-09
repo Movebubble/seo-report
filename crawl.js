@@ -1,11 +1,12 @@
 var Crawler = require("crawler");
 var csv = require('fast-csv');
 
-var pagesToCrawl = 1000;
+var maxDepth = 2;
+var currentDepth = 0;
 
 count = 0;
 
-var isMovebubbleUrl = new RegExp(/^https:\/\/www\.movebubble\.com\//)
+var isMovebubbleUrl = new RegExp(/^https:\/\/dev\.movebubble\.com\//)
 
 
 var csvStream = csv.createWriteStream({headers: true});
@@ -14,6 +15,15 @@ csvStream.pipe(process.stdout);
 function writeCsv(obj) {
     csvStream.write(obj);
 }
+
+var pages = [];
+var dups = {};
+
+for(var i = 0; i <= maxDepth; i++) {
+    pages.push([]);
+}
+
+pages[0].push('https://dev.movebubble.com');
 
 var headers = ['url', 
     'url length', 
@@ -36,7 +46,7 @@ function buildPageModel(uri, $) {
     page['url'] = uri;
     page['url length'] = uri.length;
     
-    page['indexed?'] = true;
+    page['depth'] = currentDepth;
 
     var title = $('title');
 
@@ -80,11 +90,19 @@ function queueLinksFromThisPage($) {
         var toQueueUrl = $(a).attr('href');
 
         if (toQueueUrl && toQueueUrl[0] === '/') {
-            toQueueUrl = "https://www.movebubble.com" + toQueueUrl;
+            toQueueUrl = "https://dev.movebubble.com" + toQueueUrl;
         }
 
         if(isMovebubbleUrl.test(toQueueUrl)) {
-            c.queue(toQueueUrl);
+            
+            if(dups[toQueueUrl]){
+                return;
+            }
+
+            dups[toQueueUrl] = true;
+            if(pages[currentDepth + 1]) {
+                pages[currentDepth + 1].push(toQueueUrl)
+            }
         }
     });
 }
@@ -92,29 +110,33 @@ function queueLinksFromThisPage($) {
 
 var c = new Crawler({
     maxConnections : 10,
-    skipDuplicates: true,
-    // This will be called for each crawled page
+
     callback : function (error, result, $) {
 
-        if(!isMovebubbleUrl.test(result.uri)) {
-            return;
-        }
+        count++;
+        process.stderr.write('processing ' + count + ' of ' + pages[currentDepth].length + " at depth " + currentDepth + "\r\n");
 
-        buildPageModel(result.uri, $);
-
-        if(count < (pagesToCrawl)) {
+        if(isMovebubbleUrl.test(result.uri)) {
+            buildPageModel(result.uri, $);
             queueLinksFromThisPage($);
         }
-
-        count++;
-        process.stderr.write('processed ' + count + ' of ' + c.queueItemSize + "\r\n");
-
+       
+        if(count == pages[currentDepth].length) {
+            process.stderr.write('processed ' + pages[currentDepth].length + ' pages at depth ' + currentDepth + "\r\n");
+            if(currentDepth < maxDepth) {
+                currentDepth++;
+                count = 0;
+                process.stderr.write('queueing ' + pages[currentDepth].length + ' pages at depth ' + currentDepth + "\r\n");
+                c.queue(pages[currentDepth]);
+            }
+        }
     },
+
     onDrain: function() {
         csvStream.end();
-        process.exit();
+        process.exit();            
     }
 });
 
 // Queue just one URL, with default callback
-c.queue('https://www.movebubble.com');
+c.queue(pages[0]);
