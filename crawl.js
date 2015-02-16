@@ -1,142 +1,105 @@
+
+var SiteReport = require("./site_report");
 var Crawler = require("crawler");
-var csv = require('fast-csv');
+var url = require('url');
+var fs = require('fs');
 
-var maxDepth = 2;
-var currentDepth = 0;
+var STARTING_URL = "https://www.movebubble.com/sitemap";
+var MAX_DEPTH = 2;
 
-count = 0;
+var allowedHost = url.parse(STARTING_URL).host;
 
-var isMovebubbleUrl = new RegExp(/^https:\/\/dev\.movebubble\.com\//)
+console.log(allowedHost);
 
+var processors = [];
 
-var csvStream = csv.createWriteStream({headers: true});
-csvStream.pipe(process.stdout);
+var normalizedPath = require("path").join(__dirname, "validators");
+fs.readdirSync(normalizedPath).forEach(function(file) {
+	processors.push(require("./validators/" + file));
+});
 
-function writeCsv(obj) {
-    csvStream.write(obj);
-}
+var outputters = [];
+normalizedPath = require("path").join(__dirname, "outputters");
+fs.readdirSync(normalizedPath).forEach(function(file) {
+	if(file.indexOf('.js') >= 0){
+		outputters.push(require("./outputters/" + file));
+	}
+});
 
-var pages = [];
-var dups = {};
+function queueLinksOnPage(error, result, $) {
 
-for(var i = 0; i <= maxDepth; i++) {
-    pages.push([]);
-}
+	if(result.options.priority >= MAX_DEPTH) return;
 
-pages[0].push('https://dev.movebubble.com');
-
-var headers = ['url', 
-    'url length', 
-    'indexed?', 
-    'title', 
-    'title length', 
-    'description', 
-    'description length', 
-    'h1 count', 
-    'h1', 
-    'h1 length'];
-
-function buildPageModel(uri, $) {
-    if(/noindex/.test($('meta[name=robots]').attr('content'))) {
-        return;
-    }
-
-    var page = {};
-
-    page['url'] = uri;
-    page['url length'] = uri.length;
-    
-    page['depth'] = currentDepth;
-
-    var title = $('title');
-
-    page['title'] = null;
-    page['title length'] = 0;
-
-    if(title.length > 0) {
-        page['title'] = title.text();
-        page['title length'] = title.text().length;
-    }
-
-    var desc = $('meta[name=description]');
-
-    page['description'] = null;
-    page['description length'] = 0;
-
-    if(desc.length > 0) {
-        page['description'] = desc.attr('content');
-        page['description length'] = desc.attr('content').length;
-    }
-    
-    page['h1 count'] = $('h1').length;
-    page['h1'] = null
-    page['h1 length'] = 0;
-
-    if($('h1').length > 0) {
-        page['h1'] = $($('h1')[0]).text();
-        page['h1 length'] = $($('h1')[0]).text().length;        
-    }
-
-    writeCsv(page);
-} 
-
-function queueLinksFromThisPage($) {
     $('a').each(function(index, a) {
+    	var $a = $(a);
 
-        if($(a).attr('nofollow') != null){
-            return;
-        }
-
-        var toQueueUrl = $(a).attr('href');
+        var toQueueUrl = $a.attr('href');
 
         if (toQueueUrl && toQueueUrl[0] === '/') {
-            toQueueUrl = "https://dev.movebubble.com" + toQueueUrl;
+            toQueueUrl = url.resolve(result.uri, toQueueUrl);
         }
 
-        if(isMovebubbleUrl.test(toQueueUrl)) {
-            
-            if(dups[toQueueUrl]){
-                return;
-            }
-
-            dups[toQueueUrl] = true;
-            if(pages[currentDepth + 1]) {
-                pages[currentDepth + 1].push(toQueueUrl)
-            }
-        }
+		queue(toQueueUrl, result.options.priority + 1)
     });
 }
 
+var queue = function() {
+	var cache = {};
+
+	return function queue(uri, depth) {
+		if(!uri) return;
+
+		var u = url.parse(uri);
+
+		if(!u.host) return;
+	    if(u.host.indexOf(allowedHost) < 0) return;
+	    if(cache[uri]) return;
+
+	    cache[uri] = true;
+
+	    c.queue({
+			uri: uri,
+			priority: depth
+		});
+	}
+}();
+
+var siteReport = new SiteReport();
 
 var c = new Crawler({
     maxConnections : 10,
+    cache: true,
+    skipDuplicates: true,
 
     callback : function (error, result, $) {
+    	if(error) {
+    		console.error(error);
+    		return;    		
+    	}
 
-        count++;
-        process.stderr.write('processing ' + count + ' of ' + pages[currentDepth].length + " at depth " + currentDepth + "\r\n");
+    	console.log(result.uri);
 
-        if(isMovebubbleUrl.test(result.uri)) {
-            buildPageModel(result.uri, $);
-            queueLinksFromThisPage($);
-        }
-       
-        if(count == pages[currentDepth].length) {
-            process.stderr.write('processed ' + pages[currentDepth].length + ' pages at depth ' + currentDepth + "\r\n");
-            if(currentDepth < maxDepth) {
-                currentDepth++;
-                count = 0;
-                process.stderr.write('queueing ' + pages[currentDepth].length + ' pages at depth ' + currentDepth + "\r\n");
-                c.queue(pages[currentDepth]);
-            }
-        }
-    },
+    	if(url.parse(result.uri).host.indexOf(allowedHost) >= 0) {
+    		queueLinksOnPage(error, result, $);
 
-    onDrain: function() {
-        csvStream.end();
-        process.exit();            
+	    	var report = siteReport.getPageReport(result.uri);
+
+	    	if(!$) {
+	    		console.error('jquery undefined on ' + result.uri)
+	    	} else {
+		    	for (var i = 0; i < processors.length; i++) {
+		    		processors[i](error, result, $, report);
+		    	}
+	    	}
+    	}
+
+    	if (c.queueItemSize == 1) {
+    		for(var i = 0; i < outputters.length; i++) {
+		        outputters[i](siteReport);
+    		}
+    	}
     }
 });
 
-// Queue just one URL, with default callback
-c.queue(pages[0]);
+queue(STARTING_URL, 0);
+
