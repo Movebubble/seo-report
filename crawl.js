@@ -4,8 +4,9 @@ var Crawler = require("crawler");
 var url = require('url');
 var fs = require('fs');
 
-var STARTING_URL = "https://www.movebubble.com/sitemap";
-var MAX_DEPTH = 2;
+var args = process.argv.slice(2);
+var STARTING_URL = args[0];
+var MAX_DEPTH = args[1];
 
 var allowedHost = url.parse(STARTING_URL).host;
 
