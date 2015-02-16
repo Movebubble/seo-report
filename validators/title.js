@@ -1,3 +1,7 @@
+var titles = {};
+
+
+
 function Title(error, result, $, report) {
 	var title = $('title');
 
@@ -13,6 +17,8 @@ function Title(error, result, $, report) {
     	} else if(text.length > 70) {
 	        report.addMessage('WARN', 'Title tag too long');
     	}
+
+        report.title = text;
     }
 }
 

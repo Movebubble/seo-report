@@ -10,11 +10,17 @@ function Redirects(error, result, $, report) {
     		level = "INFO";
     	}
 
+        report.setAttribute(redirect.redirectUri, 'httpStatus', redirect.statusCode);
+
     	report.addMessage(level, "" + redirect.statusCode + " redirect to " + redirect.redirectUri, requestUri, redirect.redirectUri);
     	report.addMessage(level, requestUri + " does a " + redirect.statusCode + " redirect to here", null, requestUri);
 
+        report.setAttribute(requestUri, 'httpStatus', redirect.statusCode);
+
     	requestUri = redirect.redirectUri;
     }
+
+    report.setAttribute(requestUri, 'httpStatus', result.statusCode);
 }
 
 module.exports = Redirects;

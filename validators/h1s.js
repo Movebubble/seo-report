@@ -11,6 +11,8 @@ function H1(error, result, $, report) {
     	if(text.length == 0) {
 	        report.addMessage('ERROR', 'Empty h1 tag');
     	}
+
+        report.h1 = text;
     }
 }
 

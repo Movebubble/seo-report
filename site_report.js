@@ -25,6 +25,14 @@ PageReport.prototype.addMessage = function(level, message, uri, linkedUri) {
 	}
 };
 
+PageReport.prototype.setAttribute = function(uri, attr, val) {
+	if(uri) {
+		this._siteReport.getPageReport(uri)[attr] = val;
+	} else {
+		this[attr] = val;
+	}
+};
+
 PageReport.prototype.setIndexable = function(isIndexable) {
 	if(this.indexable == isIndexable) return;
 
