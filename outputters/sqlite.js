@@ -1,5 +1,5 @@
 var sqlite3 = require('sqlite3').verbose();
-
+var csv = require('fast-csv');
 
 module.exports = function Sqlite(report) {
 	var db = new sqlite3.Database('output/crawl.db');
@@ -45,8 +45,20 @@ module.exports = function Sqlite(report) {
 				"GROUP BY u.url, u.h1" + "\r\n" +
 				"HAVING COUNT(*) > 1" + "\r\n" +
 				"ORDER BY u.h1");
-	});
 
+		var csvStream = csv.createWriteStream({headers: true}),
+	    writableStream = require('fs').createWriteStream("output/seo.csv");
+
+		csvStream.pipe(writableStream);
+
+		db.each("SELECT * FROM urls u INNER JOIN messages m ON u.url = m.url", function(err, row) {
+	    	csvStream.write(row);
+	  	},
+        function (err, cntx) {
+            csvStream.end();
+        });
+	});
+		
 	db.close();
 }
  
