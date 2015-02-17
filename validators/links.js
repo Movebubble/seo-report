@@ -28,6 +28,6 @@ module.exports = function Links(error, result, $, report) {
 	}
 
 	if(external > 20) {
-		report.addMessage("WARN", external + " internal links on page");
+		report.addMessage("WARN", external + " external links on page");
 	}
 }
