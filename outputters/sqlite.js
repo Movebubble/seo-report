@@ -46,8 +46,12 @@ module.exports = function Sqlite(report) {
 				"HAVING COUNT(*) > 1" + "\r\n" +
 				"ORDER BY u.h1");
 
-		var csvStream = csv.createWriteStream({headers: true}),
-	    writableStream = require('fs').createWriteStream("output/seo.csv");
+		var csvStream = csv.createWriteStream({headers: true});
+
+		var d = new Date();
+		var file = 'seo-' + d.getFullYear() + '-' + ("0" + (d.getMonth() + 1)).slice(-2) + '-' + ("0" + d.getDate()).slice(-2) + '.csv';
+
+	    writableStream = require('fs').createWriteStream("output/" + file);
 
 		csvStream.pipe(writableStream);
 
