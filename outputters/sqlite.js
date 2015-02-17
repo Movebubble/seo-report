@@ -46,6 +46,13 @@ module.exports = function Sqlite(report) {
 				"HAVING COUNT(*) > 1" + "\r\n" +
 				"ORDER BY u.h1");
 
+		db.run( "INSERT INTO messages (url, category, level, message)" + "\r\n" +
+				"SELECT u.url, 'No Error', 'OK', 'No Error Found'" + "\r\n" +
+				"FROM urls u" + "\r\n" +
+				"LEFT OUTER JOIN messages m" + "\r\n" +
+				"ON m.url = u.url" + "\r\n" +
+				"WHERE m.Level IS NULL");
+
 		var csvStream = csv.createWriteStream({headers: true});
 
 		var d = new Date();
