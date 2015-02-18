@@ -9,7 +9,7 @@ module.exports = function Robots(error, result, $, report) {
 
     parser.setUrl(robots);
 
-    if(!parser.canFetchSync('', result.url)) {
+    if(!parser.canFetchSync('', result.url.pathname)) {
     	report.addMessage("INFO", "blocked from indexing by robots.txt");
     	reoport.setIndexable(false);
     } 
